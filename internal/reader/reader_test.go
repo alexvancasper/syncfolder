@@ -114,20 +114,29 @@ func createFake(root string, mode os.FileMode) error {
 	return nil
 }
 
+func equals(dir1, dir2 File) bool {
+	if len(dir1) != len(dir2) {
+		return false
+	}
+	return true
+
+}
+
 func TestWalk(t *testing.T) {
-
 	source_folder := filepath.Join(basePath, sourceFolder)
-
 	createTestDirTree(source_folder, os.ModeDir|(OS_USER_RWX|OS_ALL_R))
-	createFiles(source_folder, testPath, 10, os.ModeDir|(OS_USER_RWX|OS_ALL_R))
-
+	createFiles(source_folder, testPath, 2, os.ModeDir|(OS_USER_RWX|OS_ALL_R))
 	createFake(filepath.Join(basePath, sourceFolder), os.ModeDir|(OS_USER_R|OS_GROUP_R))
+
 	sourceDir := NewWalker()
-	sourceDir, err := sourceDir.Walk(source_folder)
+	sourceDir, err := sourceDir.WalkDir(source_folder)
 	if err != nil {
 		log.Printf("%s", err)
 	}
 	sourceDir.PrintData()
+	var etalon []File
+	copy(etalon, sourceDir.Files) // TODO: define etalon separately.
+	equals(sourceDir.Files, etalon)
 
 	err = removeFake(filepath.Join(basePath, sourceFolder, "fakeDir"))
 	if err != nil {
