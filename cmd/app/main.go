@@ -2,7 +2,6 @@ package main
 
 import (
 	"final_task/internal/reader"
-	"fmt"
 
 	"github.com/sirupsen/logrus"
 )
@@ -37,11 +36,14 @@ func main() {
 	}
 	// dir2.PrintData()
 
-	distinc := reader.Distinction(*dir1, *dir2)
+	// distinc := reader.Distinction(*dir1, *dir2)
 	// distinc2 := reader.Distinction(*dir2, *dir1)
 
-	fmt.Println("Dir1->Dir2: Distinction")
-	distinc.PrintData()
+	// fmt.Println("Dir1->Dir2: Distinction")
+	// distinc.PrintData()
 	// fmt.Println("Dir2->Dir1: Distinction")
 	// distinc2.PrintData()
+
+	reader.Sync(dir1, dir2)
+	reader.Sync(dir2, dir1)
 }
