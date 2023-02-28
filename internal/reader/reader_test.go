@@ -114,12 +114,8 @@ func createFake(root string, mode os.FileMode) error {
 	return nil
 }
 
-func equals(dir1, dir2 File) bool {
-	if len(dir1) != len(dir2) {
-		return false
-	}
+func equals(dir1, dir2 []File) bool {
 	return true
-
 }
 
 func TestWalk(t *testing.T) {
@@ -134,9 +130,9 @@ func TestWalk(t *testing.T) {
 		log.Printf("%s", err)
 	}
 	sourceDir.PrintData()
-	var etalon []File
-	copy(etalon, sourceDir.Files) // TODO: define etalon separately.
-	equals(sourceDir.Files, etalon)
+	var etalon ListFiles
+	copy(etalon.Files, sourceDir.Files) // TODO: define etalon separately.
+	equals(sourceDir.Files, etalon.Files)
 
 	err = removeFake(filepath.Join(basePath, sourceFolder, "fakeDir"))
 	if err != nil {

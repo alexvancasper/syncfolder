@@ -30,12 +30,11 @@ func main() {
 	}
 	// dir2.PrintData()
 
-	distinc := sync.Distinction(*dir1, *dir2)
-	distinc2 := sync.Distinction(*dir2, *dir1)
+	distinc := sync.Distinction2(*dir1, *dir2)
+	distinc2 := sync.Distinction2(*dir2, *dir1)
 
 	fmt.Println("Dir1->Dir2: Distinction")
 	distinc.PrintData()
 	fmt.Println("Dir2->Dir1: Distinction")
 	distinc2.PrintData()
-
 }
