@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 var BUFFERSIZE int64
@@ -51,8 +52,45 @@ func Distinction(dir1, dir2 ListFiles) ListFiles {
 	return set
 }
 
-func Sync(dir1, dir2 *ListFiles) {
+func Sync(source_folder, destination_folder string, twoWay bool) {
+	ticker := time.NewTicker(30 * time.Second)
+	done := make(chan bool)
+	entry.Infoln("Started!")
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				var err error
+				dir1 := NewWalker()
+				dir1, err = dir1.WalkDir(source_folder)
+				if err != nil {
+					entry.Error(err)
+				}
+				dir2 := NewWalker()
+				dir2, err = dir2.WalkDir(destination_folder)
+				if err != nil {
+					entry.Error(err)
+				}
+				if twoWay {
+					syncTwoFolders(dir1, dir2)
+					syncTwoFolders(dir2, dir1)
+				} else {
+					syncTwoFolders(dir1, dir2)
+				}
+			}
+		}
+	}()
+	time.Sleep(1 * time.Minute)
+	ticker.Stop()
+	done <- true
+	entry.Infoln("Stopped!")
+}
+
+func syncTwoFolders(dir1, dir2 *ListFiles) {
 	//Dir1 -> Dir2
+
 	distinc := Distinction(*dir1, *dir2)
 	if len(distinc.MapHash) == 0 {
 		entry.Debugf("Nothing to sync %s -> %s", dir1.Basepath, dir2.Basepath)
