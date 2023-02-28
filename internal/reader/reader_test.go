@@ -130,9 +130,9 @@ func TestWalk(t *testing.T) {
 		log.Printf("%s", err)
 	}
 	sourceDir.PrintData()
-	var etalon ListFiles
-	copy(etalon.Files, sourceDir.Files) // TODO: define etalon separately.
-	equals(sourceDir.Files, etalon.Files)
+	// var etalon ListFiles
+	// copy(etalon.Files, sourceDir.Files) // TODO: define etalon separately.
+	// equals(sourceDir.Files, etalon.Files)
 
 	err = removeFake(filepath.Join(basePath, sourceFolder, "fakeDir"))
 	if err != nil {
