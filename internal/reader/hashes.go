@@ -8,6 +8,10 @@ import (
 	"github.com/zeebo/xxh3"
 )
 
+/*
+hashCalc - calculate xxh3 hash based on content of file
+https://cyan4973.github.io/xxHash/
+*/
 func hashCalc(path string) uint64 {
 	fileSize, err := os.Stat(path)
 	if err != nil {

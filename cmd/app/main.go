@@ -17,14 +17,6 @@ import (
 
 var AppConfig *config.Config
 
-// const (
-// 	source_folder      = "/workspaces/rebrain-go/final_task/testbed/src_folder/"
-// 	destination_folder = "/workspaces/rebrain-go/final_task/testbed/dst_folder/"
-// 	twoWay             = true
-// 	logFile            = "log.txt"
-// 	configPath         = "./config/config.yml"
-// )
-
 func main() {
 	AppConfig = config.ReadConfig(os.Args[1])
 
@@ -45,7 +37,6 @@ func main() {
 		},
 	}
 	logger.SetFormatter(formatter)
-	logger.SetLevel(logrus.TraceLevel)
 	logger.SetLevel(logrus.Level(AppConfig.Options.Debug))
 	logEntry := logrus.NewEntry(logger)
 	logEntry.Infof("Start service %s", AppConfig.Service.Name)
@@ -63,7 +54,6 @@ func main() {
 		logEntry.Info(fmt.Errorf("received signal %s", sig.String()))
 		cancelFunc()
 		wg.Wait()
-		file.Close()
 		break
 	}
 	return

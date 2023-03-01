@@ -15,44 +15,48 @@ import (
 )
 
 var entry *logrus.Entry
-var BUFFERSIZE int64
 
-func Distinction(dir1, dir2 ListFiles) ListFiles {
-	if len(dir1.MapHash) == 0 && len(dir2.MapHash) == 0 {
-		return ListFiles{Basepath: "", MapHash: make(map[uint64]File), MapName: make(map[string]File)}
-	}
-
+/*
+distinction - function to find non-common files between two folders (ListFiles).
+INPUT:
+dir1 - source folder  or "a"
+dir2 - destination folder or "b"
+OUTPUT:
+set - set of non-intersection files.
+*/
+func distinction(dir1, dir2 ListFiles) ListFiles {
 	set := ListFiles{Basepath: "", MapHash: make(map[uint64]File), MapName: make(map[string]File)}
+	if len(dir1.MapHash) == 0 && len(dir2.MapHash) == 0 {
+		return set
+	}
 	set.Basepath = dir1.Basepath
 	for hashA, a := range dir1.MapHash {
 		if b, ok := dir2.MapHash[hashA]; ok {
-			//Hash found in A
-			if MakeNameKey(dir1.Basepath, a.Name) == MakeNameKey(dir2.Basepath, b.Name) {
-				//Name and place in the destination and source folder are the same. Means files completly identically
-				entry.Debugf("Files %s and %s identially - not sync", a.Name, b.Name)
+			//hash found
+			if makeNameKey(dir1.Basepath, a.Name) == makeNameKey(dir2.Basepath, b.Name) {
+				//Name and path in the destination and source folder are the same. Hence files completly identically
+				entry.Debugf("Both files identical. Files SRC:%s and DST:%s - not sync", a.Name, b.Name)
 			} else {
-				//Names or place is different - need to sync them
-				entry.Infof("Files %s and %s content is the same but place is different - add to sync", a.Name, b.Name)
-				// entry.Printf("Files %s and %s content is the same but place is different - add to sync", MakeNameKey(dir1.Basepath, a.Name), MakeNameKey(dir2.Basepath, b.Name))
-				set.MapName[MakeNameKey(dir1.Basepath, a.Name)] = a
+				//Names or path is different - need to sync them
+				entry.Infof("The same content. Path is different. Files SRC:%s and DST:%s  - SRC add to sync", a.Name, b.Name)
+				set.MapName[makeNameKey(dir1.Basepath, a.Name)] = a
 			}
 		} else {
-			//hash not found in B
-			if b, ok := dir2.MapName[MakeNameKey(dir1.Basepath, a.Name)]; ok {
-				//Name and place in the destination and source folder are the same. Need to add to sync the last changed file
+			//hash is not found
+			if b, ok := dir2.MapName[makeNameKey(dir1.Basepath, a.Name)]; ok {
+				//Name and path in the destination and source folder are the same. Need to add to sync the last changed file
 				if a.Info.ModTime().UnixNano() > b.Info.ModTime().UnixNano() {
-					entry.Infof("Files %s and %s First file is last changed. %s > %s. Add to sync first file - A", MakeNameKey(dir1.Basepath, a.Name), MakeNameKey(dir2.Basepath, b.Name), a.Info.ModTime(), b.Info.ModTime())
-					set.MapName[MakeNameKey(dir1.Basepath, a.Name)] = a
+					entry.Infof("Source file is last changed. Files SRC:%s and DST:%s DateTime of changing: %s > %s - SRC add to sync ", makeNameKey(dir1.Basepath, a.Name), makeNameKey(dir2.Basepath, b.Name), a.Info.ModTime(), b.Info.ModTime())
+					set.MapName[makeNameKey(dir1.Basepath, a.Name)] = a
 				} else if a.Info.ModTime().UnixNano() < b.Info.ModTime().UnixNano() {
-					entry.Debugf("Files %s and %s Second file is last changed. %s < %s. Not added to sync due to sync A->B. last changed file is B", a.Name, b.Name, a.Info.ModTime(), b.Info.ModTime())
-					// set.MapName[MakeNameKey(dir2.Basepath, b.Name)] = b
+					entry.Debugf("Destination file is last changed. Files SRC:%s and DST:%s DateTime of changing: %s < %s. Not added to sync due to sync SRC->DST ", a.Name, b.Name, a.Info.ModTime(), b.Info.ModTime())
 				} else {
-					entry.Errorf("Files %s and %s Last change time is the same. %s == %s - CRITICAL ISSUE!", MakeNameKey(dir1.Basepath, a.Name), MakeNameKey(dir2.Basepath, b.Name), a.Info.ModTime(), b.Info.ModTime())
+					entry.Errorf("Last change time is the same. Files SRC:%s and DST:%s DateTime of changing: %s == %s - CRITICAL ISSUE!", makeNameKey(dir1.Basepath, a.Name), makeNameKey(dir2.Basepath, b.Name), a.Info.ModTime(), b.Info.ModTime())
 				}
 			} else {
 				//Names or place is different - need to sync them
-				entry.Infof("File %s is new - add to sync", MakeNameKey(dir1.Basepath, a.Name))
-				set.MapName[MakeNameKey(dir1.Basepath, a.Name)] = a
+				entry.Infof("Found new file %s - add to sync", makeNameKey(dir1.Basepath, a.Name))
+				set.MapName[makeNameKey(dir1.Basepath, a.Name)] = a
 			}
 		}
 	}
@@ -60,42 +64,36 @@ func Distinction(dir1, dir2 ListFiles) ListFiles {
 }
 
 /*
-Sync allows to synchronization between two folders.
-source_folder, destination _folder - folders for synching
-twoWay - if true then sync from source_folder to destination folder and vice versa
-if false then sync from source_folder to destination folder only
+Sync - starting function, starts work every interval.
 */
 func Sync(ctx context.Context, wg *sync.WaitGroup, entryF *logrus.Entry, AppConfig *config.Config) {
-	// func Sync(ctx context.Context, wg *sync.WaitGroup, entryF *logrus.Entry, source_folder, destination_folder string, twoWay bool) {
-	entry = entryF
+	entry = entryF //Assign to global var for logging
 	ticker := time.NewTicker(time.Duration(AppConfig.Options.Internal) * time.Minute)
 
 	entry.Infoln("Sync start")
 	entry.Debugf("Source: %s Destination: %s TwoWay: %t", AppConfig.Folders.Srcfolder, AppConfig.Folders.DstFolder, AppConfig.Options.TwoWay)
 	for {
-		// time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) //necessary to avoid high CPU usage, but in general it is not needed.
 		select {
 		case <-ctx.Done():
 			ticker.Stop()
-			// Этот случай выбирается, когда переданный в качестве аргумента контекст уведомляет о завершении работы
-			// В данном примере это произойдёт, когда в main будет вызвана cancelFunction
 			entry.Infoln("Sync shutdown")
 			wg.Done()
 			return
 
 		case <-ticker.C:
-			entry.Infoln("Check folders")
+			entry.Debugf("Start to check folders")
 			var err error
 			dir1 := NewWalker()
 			dir1, err = dir1.WalkDir(AppConfig.Folders.Srcfolder)
 			if err != nil {
-				entry.Error(err)
+				entry.Error(fmt.Errorf("Sync.WalkDir source: %v", err))
 			}
 			entry.Infof("Number of files in source folder: %d", len(dir1.MapHash))
 			dir2 := NewWalker()
 			dir2, err = dir2.WalkDir(AppConfig.Folders.DstFolder)
 			if err != nil {
-				entry.Error(err)
+				entry.Error(fmt.Errorf("Sync.WalkDir destination: %v", err))
 			}
 			entry.Infof("Number of files in destination folder: %d", len(dir1.MapHash))
 			if AppConfig.Options.TwoWay {
@@ -109,17 +107,26 @@ func Sync(ctx context.Context, wg *sync.WaitGroup, entryF *logrus.Entry, AppConf
 
 }
 
+/*
+syncTwoFolders - If need to copy files.
+Creates folder with the source permissions in the dst folder in case if it needed.
+Then directories created copy files.
+if the folder is empty then it won't sync.
+*/
 func syncTwoFolders(dir1, dir2 *ListFiles) {
-	//Dir1 -> Dir2
-
-	distinc := Distinction(*dir1, *dir2)
+	distinc := distinction(*dir1, *dir2)
 	if len(distinc.MapHash) == 0 {
 		entry.Infof("Nothing to sync %s -> %s", dir1.Basepath, dir2.Basepath)
 	}
-	for key, val := range distinc.MapName {
-		sourceFolder := filepath.Join(dir1.Basepath, key)[:len(filepath.Join(dir1.Basepath, key))-len(filepath.Base(key))]
-		destination := filepath.Join(dir2.Basepath, key)
-		pathDst := destination[:len(destination)-len(filepath.Base(key))]
+	for fileName, fileInfo := range distinc.MapName {
+		/*
+			source file path: /src-folder/dir1/dir2/file1
+			need to copy it to: /dst-folder, in this case need to create folders dir1/dir2.
+			below code removes /src-folder/ and file1 from source file path and add destination path /dst-folder/dir1/dir2/
+		*/
+		sourceFolder := filepath.Join(dir1.Basepath, fileName)[:len(filepath.Join(dir1.Basepath, fileName))-len(filepath.Base(fileName))]
+		destination := filepath.Join(dir2.Basepath, fileName)
+		pathDst := destination[:len(destination)-len(filepath.Base(fileName))]
 		_, errStat := os.Stat(pathDst) //check is there is all necessary folders in the destination folder
 		if errStat != nil {
 			info, e := os.Stat(sourceFolder)
@@ -134,19 +141,24 @@ func syncTwoFolders(dir1, dir2 *ListFiles) {
 			}
 		}
 
-		err := copy(val.Name, destination, val.Info.Size())
+		err := copy(fileInfo.Name, destination, fileInfo.Info.Size())
 		if err != nil {
 			entry.Error(fmt.Errorf("file copying failed: %v", err))
 			continue
 		}
-		entry.Infof("Copy file %s to %s size %d bytes - done", val.Name, destination, val.Info.Size())
+		entry.Infof("Copy file SRC:%s to DST:%s size %d bytes - done", fileInfo.Name, destination, fileInfo.Info.Size())
 	}
 }
 
-func copy(src, dst string, BUFFERSIZE int64) error {
+/*
+Simple copy files with predefined buffer.
+buf should not be huge value.
+Possible issue: if the file is huge then it takes whole RAM.
+*/
+func copy(src, dst string, bufSize int64) error {
 	sourceFileStat, err := os.Stat(src)
 	if err != nil {
-		return fmt.Errorf("copy: checking source file: %v", err)
+		return fmt.Errorf("copy: stat source file: %v", err)
 	}
 
 	if !sourceFileStat.Mode().IsRegular() {
@@ -159,27 +171,20 @@ func copy(src, dst string, BUFFERSIZE int64) error {
 	}
 	defer source.Close()
 
+	//If destination file is exist then it renames the old file. After copy is done the file will be removed.
+	newFilename := ""
 	infoDst, err := os.Stat(dst)
 	if err == nil {
-		newFilename := fmt.Sprintf("%s_%d", dst, infoDst.ModTime().Nanosecond())
-		os.Rename(dst, newFilename)
-		defer os.Remove(newFilename) //TODO: need to check that copy is sucessfully finished before removing
-		// return fmt.Errorf("File %s already exists.", dst)
+		newFilename = fmt.Sprintf("%s_%d", dst, infoDst.ModTime().Nanosecond())
 	}
 
-	destination, err := os.Create(dst)
-	// destination, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, sourceFileStat.Mode())
+	destination, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, sourceFileStat.Mode())
 	if err != nil {
 		return fmt.Errorf("copy: destination file create: %v", err)
 	}
 	defer destination.Close()
 
-	// if err != nil {
-	// 	return fmt.Errorf("copy: %v", err)
-	// 	// panic(err)
-	// }
-
-	buf := make([]byte, BUFFERSIZE)
+	buf := make([]byte, bufSize)
 	for {
 		n, err := source.Read(buf)
 		if err != nil && err != io.EOF {
@@ -192,6 +197,10 @@ func copy(src, dst string, BUFFERSIZE int64) error {
 		if _, err := destination.Write(buf[:n]); err != nil {
 			return fmt.Errorf("copy: write destination file: %v", err)
 		}
+	}
+
+	if err == nil && len(newFilename) > 3 {
+		os.Remove(newFilename)
 	}
 
 	return err
