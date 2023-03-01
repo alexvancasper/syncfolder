@@ -1,7 +1,12 @@
 package main
 
 import (
+	"context"
 	"final_task/internal/reader"
+	"fmt"
+	"os"
+	"os/signal"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
@@ -19,34 +24,24 @@ const (
 )
 
 func main() {
-	logger.SetLevel(6)
-	// entry := logrus.NewEntry(logger)
+	var wg sync.WaitGroup
+	ctx := context.Background()
+	ctx, cancelFunc := context.WithCancel(ctx)
 
-	// var err error
-
-	// dir1 := reader.NewWalker()
-	// dir1, err = dir1.WalkDir(source_folder)
-	// if err != nil {
-	// 	entry.Error(err)
-	// }
-	// // dir1.PrintData()
-
-	// dir2 := reader.NewWalker()
-	// dir2, err = dir2.WalkDir(destination_folder)
-	// if err != nil {
-	// 	entry.Error(err)
-	// }
-	// // dir2.PrintData()
-
-	// distinc := reader.Distinction(*dir1, *dir2)
-	// distinc2 := reader.Distinction(*dir2, *dir1)
-
-	// fmt.Println("Dir1->Dir2: Distinction")
-	// distinc.PrintData()
-	// fmt.Println("Dir2->Dir1: Distinction")
-	// distinc2.PrintData()
 	reader.LogSetup(6)
-	reader.Sync(source_folder, destination_folder, true)
+	wg.Add(1)
+	go reader.Sync(ctx, &wg, source_folder, destination_folder, true)
 
-	// reader.Sync(dir2, dir1)
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, os.Kill)
+	// go func() {
+	for sig := range c {
+		// sig is a ^C, handle it
+		fmt.Printf(sig.String())
+		cancelFunc()
+		wg.Wait()
+		return
+	}
+	// }()
+
 }

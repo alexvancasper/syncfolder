@@ -1,10 +1,12 @@
 package reader
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -52,40 +54,53 @@ func Distinction(dir1, dir2 ListFiles) ListFiles {
 	return set
 }
 
-func Sync(source_folder, destination_folder string, twoWay bool) {
+/*
+Sync allows to synchronization between two folders.
+source_folder, destination _folder - folders for synching
+twoWay - if true then sync from source_folder to destination folder and vice versa
+
+	if false then sync from source_folder to destination folder only
+*/
+func Sync(ctx context.Context, wg *sync.WaitGroup, source_folder, destination_folder string, twoWay bool) {
 	ticker := time.NewTicker(30 * time.Second)
-	done := make(chan bool)
-	entry.Infoln("Started!")
-	go func() {
-		for {
-			select {
-			case <-done:
-				return
-			case <-ticker.C:
-				var err error
-				dir1 := NewWalker()
-				dir1, err = dir1.WalkDir(source_folder)
-				if err != nil {
-					entry.Error(err)
-				}
-				dir2 := NewWalker()
-				dir2, err = dir2.WalkDir(destination_folder)
-				if err != nil {
-					entry.Error(err)
-				}
-				if twoWay {
-					syncTwoFolders(dir1, dir2)
-					syncTwoFolders(dir2, dir1)
-				} else {
-					syncTwoFolders(dir1, dir2)
-				}
+
+	entry.Infoln("Sync start")
+	entry.Debugf("Source: %s\nDestination: %s\nTwo Way: %t", source_folder, destination_folder, twoWay)
+	for {
+		// time.Sleep(50 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			ticker.Stop()
+			// Этот случай выбирается, когда переданный в качестве аргумента контекст уведомляет о завершении работы
+			// В данном примере это произойдёт, когда в main будет вызвана cancelFunction
+			entry.Infoln("Sync shutdown")
+			wg.Done()
+			return
+
+		case <-ticker.C:
+			entry.Infoln("Check folders")
+			var err error
+			dir1 := NewWalker()
+			dir1, err = dir1.WalkDir(source_folder)
+			if err != nil {
+				entry.Error(err)
+			}
+			entry.Debugf("Number of files in source folder: %d", len(dir1.MapHash))
+			dir2 := NewWalker()
+			dir2, err = dir2.WalkDir(destination_folder)
+			if err != nil {
+				entry.Error(err)
+			}
+			entry.Debugf("Number of files in destination folder: %d", len(dir1.MapHash))
+			if twoWay {
+				syncTwoFolders(dir1, dir2)
+				syncTwoFolders(dir2, dir1)
+			} else {
+				syncTwoFolders(dir1, dir2)
 			}
 		}
-	}()
-	time.Sleep(1 * time.Minute)
-	ticker.Stop()
-	done <- true
-	entry.Infoln("Stopped!")
+	}
+
 }
 
 func syncTwoFolders(dir1, dir2 *ListFiles) {
@@ -93,7 +108,7 @@ func syncTwoFolders(dir1, dir2 *ListFiles) {
 
 	distinc := Distinction(*dir1, *dir2)
 	if len(distinc.MapHash) == 0 {
-		entry.Debugf("Nothing to sync %s -> %s", dir1.Basepath, dir2.Basepath)
+		entry.Infof("Nothing to sync %s -> %s", dir1.Basepath, dir2.Basepath)
 	}
 	for key, val := range distinc.MapName {
 		sourceFolder := filepath.Join(dir1.Basepath, key)[:len(filepath.Join(dir1.Basepath, key))-len(filepath.Base(key))]
@@ -118,7 +133,7 @@ func syncTwoFolders(dir1, dir2 *ListFiles) {
 			entry.Errorf("File copying failed: %q\n", err)
 			continue
 		}
-		entry.Infof("Copy file %s size %d bytes - done", key, val.Info.Size())
+		entry.Infof("Copy file %s to %s size %d bytes - done", val.Name, destination, val.Info.Size())
 	}
 }
 
@@ -146,8 +161,8 @@ func copy(src, dst string, BUFFERSIZE int64) error {
 		// return fmt.Errorf("File %s already exists.", dst)
 	}
 
-	// destination, err := os.Create(dst)
-	destination, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, sourceFileStat.Mode())
+	destination, err := os.Create(dst)
+	// destination, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, sourceFileStat.Mode())
 	if err != nil {
 		return err
 	}

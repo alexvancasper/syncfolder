@@ -65,3 +65,23 @@ func MakeNameKey(path, filepath string) string {
 	res, _ := strings.CutPrefix(filepath, path)
 	return res
 }
+
+// func InitLog() {
+// 	// Set the output style, with only two style logrus.jsonformatter {} and logrus.textformatter {}
+// 	log.SetFormatter(&log.TextFormatter{})
+// 	log.SetOutput(os.Stdout)
+// 		// Set Output, default is stderr, can be any I.Writer, such as file * Os.File
+// 	 file, err := os.OpenFile("log.txt", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+// 	 writers := []io.Writer{
+// 		file,
+// 		os.Stdout}
+// 		// Write the file and screen at the same time
+// 	 fileAndStdoutWriter := io.MultiWriter(writers...)
+// 	if err == nil {
+// 	   log.SetOutput(fileAndStdoutWriter)
+// 	} else {
+// 	   log.Info("failed to log to file.")
+// 	}
+// 		// Set the lowest loglevel
+// 	log.SetLevel(log.InfoLevel)
+//  }
