@@ -2,7 +2,7 @@ package reader
 
 import (
 	"bufio"
-	"log"
+	"fmt"
 	"os"
 
 	"github.com/zeebo/xxh3"
@@ -11,14 +11,14 @@ import (
 func hashCalc(path string) uint64 {
 	fileSize, err := os.Stat(path)
 	if err != nil {
-		log.Print(err)
+		entry.Error(fmt.Errorf("hashCalc: stat %s, err %v", path, err))
 	}
 
 	buf := make([]byte, 0, fileSize.Size())
 
 	readFile, err := os.Open(path)
 	if err != nil {
-		log.Print(err)
+		entry.Error(fmt.Errorf("hashCalc: open %s, err %v", path, err))
 	}
 	defer readFile.Close()
 

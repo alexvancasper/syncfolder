@@ -8,8 +8,13 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"final_task/internal/config"
+
+	"github.com/sirupsen/logrus"
 )
 
+var entry *logrus.Entry
 var BUFFERSIZE int64
 
 func Distinction(dir1, dir2 ListFiles) ListFiles {
@@ -24,7 +29,7 @@ func Distinction(dir1, dir2 ListFiles) ListFiles {
 			//Hash found in A
 			if MakeNameKey(dir1.Basepath, a.Name) == MakeNameKey(dir2.Basepath, b.Name) {
 				//Name and place in the destination and source folder are the same. Means files completly identically
-				entry.Infof("Files %s and %s identially - not sync", a.Name, b.Name)
+				entry.Debugf("Files %s and %s identially - not sync", a.Name, b.Name)
 			} else {
 				//Names or place is different - need to sync them
 				entry.Infof("Files %s and %s content is the same but place is different - add to sync", a.Name, b.Name)
@@ -39,7 +44,7 @@ func Distinction(dir1, dir2 ListFiles) ListFiles {
 					entry.Infof("Files %s and %s First file is last changed. %s > %s. Add to sync first file - A", MakeNameKey(dir1.Basepath, a.Name), MakeNameKey(dir2.Basepath, b.Name), a.Info.ModTime(), b.Info.ModTime())
 					set.MapName[MakeNameKey(dir1.Basepath, a.Name)] = a
 				} else if a.Info.ModTime().UnixNano() < b.Info.ModTime().UnixNano() {
-					entry.Warningf("Files %s and %s Second file is last changed. %s < %s. Not added to sync due to sync A->B. last changed file is B", a.Name, b.Name, a.Info.ModTime(), b.Info.ModTime())
+					entry.Debugf("Files %s and %s Second file is last changed. %s < %s. Not added to sync due to sync A->B. last changed file is B", a.Name, b.Name, a.Info.ModTime(), b.Info.ModTime())
 					// set.MapName[MakeNameKey(dir2.Basepath, b.Name)] = b
 				} else {
 					entry.Errorf("Files %s and %s Last change time is the same. %s == %s - CRITICAL ISSUE!", MakeNameKey(dir1.Basepath, a.Name), MakeNameKey(dir2.Basepath, b.Name), a.Info.ModTime(), b.Info.ModTime())
@@ -58,14 +63,15 @@ func Distinction(dir1, dir2 ListFiles) ListFiles {
 Sync allows to synchronization between two folders.
 source_folder, destination _folder - folders for synching
 twoWay - if true then sync from source_folder to destination folder and vice versa
-
-	if false then sync from source_folder to destination folder only
+if false then sync from source_folder to destination folder only
 */
-func Sync(ctx context.Context, wg *sync.WaitGroup, source_folder, destination_folder string, twoWay bool) {
-	ticker := time.NewTicker(30 * time.Second)
+func Sync(ctx context.Context, wg *sync.WaitGroup, entryF *logrus.Entry, AppConfig *config.Config) {
+	// func Sync(ctx context.Context, wg *sync.WaitGroup, entryF *logrus.Entry, source_folder, destination_folder string, twoWay bool) {
+	entry = entryF
+	ticker := time.NewTicker(time.Duration(AppConfig.Options.Internal) * time.Minute)
 
 	entry.Infoln("Sync start")
-	entry.Debugf("Source: %s\nDestination: %s\nTwo Way: %t", source_folder, destination_folder, twoWay)
+	entry.Debugf("Source: %s Destination: %s TwoWay: %t", AppConfig.Folders.Srcfolder, AppConfig.Folders.DstFolder, AppConfig.Options.TwoWay)
 	for {
 		// time.Sleep(50 * time.Millisecond)
 		select {
@@ -81,18 +87,18 @@ func Sync(ctx context.Context, wg *sync.WaitGroup, source_folder, destination_fo
 			entry.Infoln("Check folders")
 			var err error
 			dir1 := NewWalker()
-			dir1, err = dir1.WalkDir(source_folder)
+			dir1, err = dir1.WalkDir(AppConfig.Folders.Srcfolder)
 			if err != nil {
 				entry.Error(err)
 			}
-			entry.Debugf("Number of files in source folder: %d", len(dir1.MapHash))
+			entry.Infof("Number of files in source folder: %d", len(dir1.MapHash))
 			dir2 := NewWalker()
-			dir2, err = dir2.WalkDir(destination_folder)
+			dir2, err = dir2.WalkDir(AppConfig.Folders.DstFolder)
 			if err != nil {
 				entry.Error(err)
 			}
-			entry.Debugf("Number of files in destination folder: %d", len(dir1.MapHash))
-			if twoWay {
+			entry.Infof("Number of files in destination folder: %d", len(dir1.MapHash))
+			if AppConfig.Options.TwoWay {
 				syncTwoFolders(dir1, dir2)
 				syncTwoFolders(dir2, dir1)
 			} else {
@@ -118,19 +124,19 @@ func syncTwoFolders(dir1, dir2 *ListFiles) {
 		if errStat != nil {
 			info, e := os.Stat(sourceFolder)
 			if e != nil {
-				entry.Error(e)
+				entry.Error(fmt.Errorf("stat source folder: %v", e))
 				continue
 			}
 			errMkdir := os.MkdirAll(pathDst, info.Mode()) // if no, create them here
 			if errMkdir != nil {
-				entry.Error(e)
+				entry.Error(fmt.Errorf("mkdir in destination folder: %v", e))
 				continue
 			}
 		}
 
 		err := copy(val.Name, destination, val.Info.Size())
 		if err != nil {
-			entry.Errorf("File copying failed: %q\n", err)
+			entry.Error(fmt.Errorf("file copying failed: %v", err))
 			continue
 		}
 		entry.Infof("Copy file %s to %s size %d bytes - done", val.Name, destination, val.Info.Size())
@@ -140,7 +146,7 @@ func syncTwoFolders(dir1, dir2 *ListFiles) {
 func copy(src, dst string, BUFFERSIZE int64) error {
 	sourceFileStat, err := os.Stat(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("copy: checking source file: %v", err)
 	}
 
 	if !sourceFileStat.Mode().IsRegular() {
@@ -149,7 +155,7 @@ func copy(src, dst string, BUFFERSIZE int64) error {
 
 	source, err := os.Open(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("copy: open source file: %v", err)
 	}
 	defer source.Close()
 
@@ -164,26 +170,27 @@ func copy(src, dst string, BUFFERSIZE int64) error {
 	destination, err := os.Create(dst)
 	// destination, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, sourceFileStat.Mode())
 	if err != nil {
-		return err
+		return fmt.Errorf("copy: destination file create: %v", err)
 	}
 	defer destination.Close()
 
-	if err != nil {
-		panic(err)
-	}
+	// if err != nil {
+	// 	return fmt.Errorf("copy: %v", err)
+	// 	// panic(err)
+	// }
 
 	buf := make([]byte, BUFFERSIZE)
 	for {
 		n, err := source.Read(buf)
 		if err != nil && err != io.EOF {
-			return err
+			return fmt.Errorf("copy: read source file %v", err)
 		}
 		if n == 0 {
 			break
 		}
 
 		if _, err := destination.Write(buf[:n]); err != nil {
-			return err
+			return fmt.Errorf("copy: write destination file: %v", err)
 		}
 	}
 
