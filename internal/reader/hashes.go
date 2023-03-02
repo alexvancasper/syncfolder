@@ -15,14 +15,14 @@ https://cyan4973.github.io/xxHash/
 func hashCalc(path string) uint64 {
 	fileSize, err := os.Stat(path)
 	if err != nil {
-		entry.Error(fmt.Errorf("hashCalc: stat %s, err %v", path, err))
+		fmt.Errorf("hashCalc: stat %s, err %v", path, err)
 	}
 
 	buf := make([]byte, 0, fileSize.Size())
 
 	readFile, err := os.Open(path)
 	if err != nil {
-		entry.Error(fmt.Errorf("hashCalc: open %s, err %v", path, err))
+		fmt.Errorf("hashCalc: open %s, err %v", path, err)
 	}
 	defer readFile.Close()
 

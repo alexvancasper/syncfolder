@@ -1,79 +1,49 @@
 package reader
 
 import (
-	"crypto/rand"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (
-	basePath          = "./testbad"
+	basePath          = "./testbed"
 	sourceFolder      = "src_folder"
 	destinationFolder = "dst_folder"
-
-	OS_READ        = 04
-	OS_WRITE       = 02
-	OS_EX          = 01
-	OS_USER_SHIFT  = 6
-	OS_GROUP_SHIFT = 3
-	OS_OTH_SHIFT   = 0
-
-	OS_USER_R   = OS_READ << OS_USER_SHIFT
-	OS_USER_W   = OS_WRITE << OS_USER_SHIFT
-	OS_USER_X   = OS_EX << OS_USER_SHIFT
-	OS_USER_RW  = OS_USER_R | OS_USER_W
-	OS_USER_RWX = OS_USER_RW | OS_USER_X
-
-	OS_GROUP_R   = OS_READ << OS_GROUP_SHIFT
-	OS_GROUP_W   = OS_WRITE << OS_GROUP_SHIFT
-	OS_GROUP_X   = OS_EX << OS_GROUP_SHIFT
-	OS_GROUP_RW  = OS_GROUP_R | OS_GROUP_W
-	OS_GROUP_RWX = OS_GROUP_RW | OS_GROUP_X
-
-	OS_OTH_R   = OS_READ << OS_OTH_SHIFT
-	OS_OTH_W   = OS_WRITE << OS_OTH_SHIFT
-	OS_OTH_X   = OS_EX << OS_OTH_SHIFT
-	OS_OTH_RW  = OS_OTH_R | OS_OTH_W
-	OS_OTH_RWX = OS_OTH_RW | OS_OTH_X
-
-	OS_ALL_R   = OS_USER_R | OS_GROUP_R | OS_OTH_R
-	OS_ALL_W   = OS_USER_W | OS_GROUP_W | OS_OTH_W
-	OS_ALL_X   = OS_USER_X | OS_GROUP_X | OS_OTH_X
-	OS_ALL_RW  = OS_ALL_R | OS_ALL_W
-	OS_ALL_RWX = OS_ALL_RW | OS_GROUP_X
 )
 
 var (
-	// testPath = []string{""}
-	testPath = []string{"", "dir1", "subdir1", "subsubdir1"} // "./dir1/subdir1/subsubdir1"
+	testPath = []string{"", "dir1"} // "./dir1"
 )
 
 /*
 size - how many bytes need to generate. in bytes
 */
-func randData(size int) []byte {
-	buf := make([]byte, size)
-	_, err := rand.Read(buf)
-	if err != nil {
-		log.Printf("unable to create test dir tree: %v\n", err)
-	}
-	return buf
-}
+// func randData(size int) []byte {
+// 	buf := make([]byte, size)
+// 	_, err := rand.Read(buf)
+// 	if err != nil {
+// 		log.Printf("unable to create test dir tree: %v\n", err)
+// 	}
+// 	return buf
+// }
 
 func createFiles(root string, dirs []string, count int, mode os.FileMode) {
 	var path string
 	// source_folder := filepath.Join(basePath, sourceFolder) // ./testbad/src_folder/
 	source_folder := root
+	// info, _ := os.Stat(source_folder)
 	for _, dir := range dirs {
 		path = filepath.Join(source_folder, dir) // ./testbad/src_folder/''  , ./testbad/src_folder/dir1 ,  ./testbad/src_folder/dir1/subdir1 , ./testbad/src_folder/dir1/subdir1/subsubdir1
 		source_folder = path
-		for i := 1; i <= count; i++ {
-			fileName := fmt.Sprintf("filename_%d.txt", i)
+		for i := 0; i < count; i++ {
+			fileName := fmt.Sprintf("filename_%d.txt", i+1)
 			filePath := filepath.Join(path, fileName)
-			err := os.WriteFile(filePath, []byte("h"), mode)
+			err := os.WriteFile(filePath, []byte(filePath), mode)
 			if err != nil {
 				log.Printf("Unable to write file: %v", err)
 				continue
@@ -98,48 +68,71 @@ func removeAll(path string) error {
 	return os.RemoveAll(path)
 }
 
-func removeFake(path string) error {
-	os.Chmod(path, os.ModeDir|OS_USER_RWX)
-	return os.RemoveAll(path)
-}
+// func removeFake(path string) error {
+// 	os.Chmod(path, os.ModeDir|fs.FileMode(os.O_RDWR))
+// 	return os.RemoveAll(path)
+// }
 
-func createFake(root string, mode os.FileMode) error {
-	path := filepath.Join(root, "fakeDir")
-	err := os.MkdirAll(path, os.ModeDir|OS_USER_RWX)
-	if err != nil {
-		return fmt.Errorf("error creating %s directory: %v\n", root, err)
-	}
-	createFiles(root, []string{"fakeDir"}, 10, mode)
-	os.Chmod(path, mode)
-	return nil
-}
+// func createFake(root string, mode os.FileMode) error {
+// 	path := filepath.Join(root, "fakeDir")
+// 	err := os.MkdirAll(path, 0777)
+// 	os.Chmod(path, 0777)
+// 	if err != nil {
+// 		return fmt.Errorf("error creating %s directory: %v\n", root, err)
+// 	}
+// 	createFiles(root, []string{"fakeDir"}, 1, 0666)
+// 	os.Chmod(path, 0777)
+// 	return nil
+// }
 
-func equals(dir1, dir2 []File) bool {
-	return true
-}
-
-func TestWalk(t *testing.T) {
+func TestWalkDir(t *testing.T) {
 	source_folder := filepath.Join(basePath, sourceFolder)
-	createTestDirTree(source_folder, os.ModeDir|(OS_USER_RWX|OS_ALL_R))
-	createFiles(source_folder, testPath, 2, os.ModeDir|(OS_USER_RWX|OS_ALL_R))
-	createFake(filepath.Join(basePath, sourceFolder), os.ModeDir|(OS_USER_R|OS_GROUP_R))
+	createTestDirTree(source_folder, os.FileMode.Perm(0777))
+	createFiles(source_folder, testPath, 1, os.FileMode.Perm(0666))
 
+	req := require.New(t)
 	sourceDir := NewWalker()
 	sourceDir, err := sourceDir.WalkDir(source_folder)
 	if err != nil {
-		log.Printf("%s", err)
+		req.Fail("TestWalkDir", err)
 	}
-	sourceDir.PrintData()
-	// var etalon ListFiles
-	// copy(etalon.Files, sourceDir.Files) // TODO: define etalon separately.
-	// equals(sourceDir.Files, etalon.Files)
+	req.Len(sourceDir.MapHash, 2)
+	req.Len(sourceDir.MapName, 2)
+	req.Equal(source_folder, sourceDir.Basepath)
+	req.EqualValues(6514270587029032945, sourceDir.MapHash[6514270587029032945].Hash)
 
-	err = removeFake(filepath.Join(basePath, sourceFolder, "fakeDir"))
-	if err != nil {
-		log.Printf("%s", err)
-	}
 	err = removeAll(basePath)
 	if err != nil {
 		log.Printf("%s", err)
 	}
+}
+
+func TestWalkDirWithError(t *testing.T) {
+	source_folder := filepath.Join(basePath, sourceFolder)
+	createTestDirTree(source_folder, os.FileMode.Perm(0777))
+	createFiles(source_folder, testPath, 1, os.FileMode.Perm(0666))
+	os.Chmod(filepath.Join(source_folder, "dir1"), os.FileMode.Perm(0600))
+
+	req := require.New(t)
+	sourceDir := NewWalker()
+	sourceDir, err := sourceDir.WalkDir(source_folder)
+	if err != nil {
+		req.Failf("TestWalkDirWithError: %+v", err.Error())
+	}
+	req.Len(sourceDir.MapHash, 1)
+	req.Equal(source_folder, sourceDir.Basepath)
+	req.EqualValues(6514270587029032945, sourceDir.MapHash[6514270587029032945].Hash)
+
+	os.Chmod(filepath.Join(source_folder, "dir1"), os.FileMode.Perm(0777))
+	err = removeAll(basePath)
+	if err != nil {
+		log.Printf("%s", err)
+	}
+}
+
+func TestMakeNameKey(t *testing.T) {
+	req := require.New(t)
+	source_folder := filepath.Join(basePath, sourceFolder)
+	filepath := filepath.Join(source_folder, "dir1/filename_1.txt")
+	req.Equal("/dir1/filename_1.txt", makeNameKey(source_folder, filepath))
 }

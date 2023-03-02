@@ -26,7 +26,7 @@ func (l *ListFiles) WalkDir(path string) (*ListFiles, error) {
 
 	filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			entry.Error(err)
+			// entry.Error(err)
 			return fmt.Errorf("WalkDir: %v", err)
 		}
 		output = append(output, path)
@@ -38,7 +38,7 @@ func (l *ListFiles) WalkDir(path string) (*ListFiles, error) {
 	for i := 0; i < len(output); i++ {
 		info, err := os.Stat(output[i])
 		if err != nil {
-			entry.Error(fmt.Errorf("WalkDir stat: %v", err))
+			fmt.Errorf("WalkDir stat: %v", err)
 			continue
 		}
 		if info.IsDir() {
