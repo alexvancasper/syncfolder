@@ -15,7 +15,7 @@ func TestHashCalc(t *testing.T) {
 		req.Fail("TestHashCalc. Fail to write file", err)
 	}
 	req.EqualValues(uint64(0xd0d58c9e1f6584c4), hashCalc("testFile"))
-	os.Remove("testfile")
+	os.Remove("testFile")
 }
 
 func BenchmarkHashCalc(b *testing.B) {
@@ -27,5 +27,5 @@ func BenchmarkHashCalc(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		hashCalc("testFile")
 	}
-	os.Remove("testfile")
+	os.Remove("testFile")
 }
