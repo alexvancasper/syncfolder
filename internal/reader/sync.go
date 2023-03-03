@@ -64,50 +64,6 @@ func distinction(dir1, dir2 ListFiles) ListFiles {
 }
 
 /*
-Sync - starting function, starts work every interval.
-*/
-func Sync(ctx context.Context, wg *sync.WaitGroup, entryF *logrus.Entry, AppConfig *config.Config) {
-	entry = entryF //Assign to global var for logging
-	ticker := time.NewTicker(time.Duration(AppConfig.Options.Internal) * time.Minute)
-
-	entry.Infoln("Sync start")
-	entry.Debugf("Source: %s Destination: %s TwoWay: %t", AppConfig.Folders.Srcfolder, AppConfig.Folders.DstFolder, AppConfig.Options.TwoWay)
-	for {
-		time.Sleep(50 * time.Millisecond) //necessary to avoid high CPU usage, but in general it is not needed.
-		select {
-		case <-ctx.Done():
-			ticker.Stop()
-			entry.Infoln("Sync shutdown")
-			wg.Done()
-			return
-
-		case <-ticker.C:
-			entry.Debugf("Start to check folders")
-			var err error
-			dir1 := NewWalker()
-			dir1, err = dir1.WalkDir(AppConfig.Folders.Srcfolder)
-			if err != nil {
-				entry.Error(fmt.Errorf("Sync.WalkDir source: %v", err))
-			}
-			entry.Infof("Number of files in source folder: %d", len(dir1.MapHash))
-			dir2 := NewWalker()
-			dir2, err = dir2.WalkDir(AppConfig.Folders.DstFolder)
-			if err != nil {
-				entry.Error(fmt.Errorf("Sync.WalkDir destination: %v", err))
-			}
-			entry.Infof("Number of files in destination folder: %d", len(dir1.MapHash))
-			if AppConfig.Options.TwoWay {
-				syncTwoFolders(dir1, dir2)
-				syncTwoFolders(dir2, dir1)
-			} else {
-				syncTwoFolders(dir1, dir2)
-			}
-		}
-	}
-
-}
-
-/*
 syncTwoFolders - If need to copy files.
 Creates folder with the source permissions in the dst folder in case if it needed.
 Then directories created copy files.
@@ -141,12 +97,16 @@ func syncTwoFolders(dir1, dir2 *ListFiles) {
 			}
 		}
 
-		err := copy(fileInfo.Name, destination, fileInfo.Info.Size())
+		copied, err := copyFile(fileInfo.Name, destination, fileInfo.Info.Size())
 		if err != nil {
 			entry.Error(fmt.Errorf("file copying failed: %v", err))
 			continue
 		}
-		entry.Infof("Copy file SRC:%s to DST:%s size %d bytes - done", fileInfo.Name, destination, fileInfo.Info.Size())
+		if copied != fileInfo.Info.Size() {
+			entry.Errorf("Copy file SRC:%s to DST:%s size %d bytes", fileInfo.Name, destination, copied)
+		} else {
+			entry.Infof("Copy file SRC:%s to DST:%s size %d bytes - done", fileInfo.Name, destination, copied)
+		}
 	}
 }
 
@@ -155,19 +115,20 @@ Simple copy files with predefined buffer.
 buf should not be huge value.
 Possible issue: if the file is huge then it takes whole RAM.
 */
-func copy(src, dst string, bufSize int64) error {
-	sourceFileStat, err := os.Stat(src)
+func copyFile(src, dst string, bufSize int64) (int64, error) {
+	sourceFileStat, err := os.Lstat(src)
+	// entry.Debugf(sourceFileStat.)
 	if err != nil {
-		return fmt.Errorf("copy: stat source file: %v", err)
+		return 0, fmt.Errorf("copy: stat source file: %v", err)
 	}
 
 	if !sourceFileStat.Mode().IsRegular() {
-		return fmt.Errorf("%s is not a regular file.", src)
+		return 0, fmt.Errorf("%s is not a regular file.", src)
 	}
 
 	source, err := os.Open(src)
 	if err != nil {
-		return fmt.Errorf("copy: open source file: %v", err)
+		return 0, fmt.Errorf("copy: open source file: %v", err)
 	}
 	defer source.Close()
 
@@ -180,28 +141,74 @@ func copy(src, dst string, bufSize int64) error {
 
 	destination, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, sourceFileStat.Mode())
 	if err != nil {
-		return fmt.Errorf("copy: destination file create: %v", err)
+		return 0, fmt.Errorf("copy: destination file create: %v", err)
 	}
 	defer destination.Close()
 
 	buf := make([]byte, bufSize)
+	var copied int64
 	for {
 		n, err := source.Read(buf)
 		if err != nil && err != io.EOF {
-			return fmt.Errorf("copy: read source file %v", err)
+			return copied, fmt.Errorf("copy: read source file %v", err)
 		}
 		if n == 0 {
 			break
 		}
 
 		if _, err := destination.Write(buf[:n]); err != nil {
-			return fmt.Errorf("copy: write destination file: %v", err)
+			return copied, fmt.Errorf("copy: write destination file: %v", err)
 		}
+		copied += int64(n)
 	}
 
 	if err == nil && len(newFilename) > 3 {
 		os.Remove(newFilename)
 	}
 
-	return err
+	return copied, nil
+}
+
+/*
+Sync - starting function, starts work every interval.
+*/
+func Sync(ctx context.Context, wg *sync.WaitGroup, entryF *logrus.Entry, AppConfig *config.Config) {
+	entry = entryF //Assign to global var for logging
+	ticker := time.NewTicker(time.Duration(AppConfig.Options.Internal) * time.Second)
+
+	entry.Infoln("Sync start")
+	entry.Debugf("Source: %s Destination: %s TwoWay: %t", AppConfig.Folders.SrcFolder, AppConfig.Folders.DstFolder, AppConfig.Options.TwoWay)
+	for {
+		time.Sleep(50 * time.Millisecond) //necessary to avoid high CPU usage, but in general it is not needed.
+		select {
+		case <-ctx.Done():
+			ticker.Stop()
+			entry.Infoln("Sync shutdown")
+			wg.Done()
+			return
+
+		case <-ticker.C:
+			entry.Debugf("Start to check folders")
+			var err error
+			dir1 := NewWalker()
+			dir1, err = dir1.WalkDir(AppConfig.Folders.SrcFolder)
+			if err != nil {
+				entry.Error(fmt.Errorf("Sync.WalkDir source: %v", err))
+			}
+			entry.Infof("Number of files in source folder: %d", len(dir1.MapHash))
+			dir2 := NewWalker()
+			dir2, err = dir2.WalkDir(AppConfig.Folders.DstFolder)
+			if err != nil {
+				entry.Error(fmt.Errorf("Sync.WalkDir destination: %v", err))
+			}
+			entry.Infof("Number of files in destination folder: %d", len(dir1.MapHash))
+			if AppConfig.Options.TwoWay {
+				syncTwoFolders(dir1, dir2)
+				syncTwoFolders(dir2, dir1)
+			} else {
+				syncTwoFolders(dir1, dir2)
+			}
+		}
+	}
+
 }

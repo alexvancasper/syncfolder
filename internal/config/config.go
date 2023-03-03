@@ -12,7 +12,7 @@ type Config struct {
 		Name string `yaml:"name"`
 	}
 	Folders struct {
-		Srcfolder string `yaml:"source_folder"`
+		SrcFolder string `yaml:"source_folder"`
 		DstFolder string `yaml:"destination_folder"`
 	}
 	Options struct {
@@ -37,5 +37,7 @@ func ReadConfig(configPath string) *Config {
 	if err != nil {
 		fmt.Println(err)
 	}
+	val := AppConfig.Options.Internal
+	AppConfig.Options.Internal = val * 60
 	return &AppConfig
 }

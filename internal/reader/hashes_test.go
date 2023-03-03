@@ -18,6 +18,25 @@ func TestHashCalc(t *testing.T) {
 	os.Remove("testFile")
 }
 
+func TestHashCalcErrorStat(t *testing.T) {
+	req := require.New(t)
+	initLog()
+	req.EqualValues(uint64(0), hashCalc("testFile"))
+}
+
+func TestHashCalcErrorOpen(t *testing.T) {
+	req := require.New(t)
+	initLog()
+	err := os.WriteFile("testFile", []byte("testFiletestFiletestFiletestFie"), os.FileMode.Perm(0666))
+	if err != nil {
+		req.Fail("TestHashCalc. Fail to write file", err)
+	}
+	os.Chmod("testFile", os.FileMode.Perm(0000))
+	req.EqualValues(uint64(0), hashCalc("testFile"))
+	os.Chmod("testFile", os.FileMode.Perm(0666))
+	os.Remove("testFile")
+}
+
 func BenchmarkHashCalc(b *testing.B) {
 	err := os.WriteFile("testFile", []byte("testFiletestFiletestFiletestFie"), os.FileMode.Perm(0666))
 	if err != nil {

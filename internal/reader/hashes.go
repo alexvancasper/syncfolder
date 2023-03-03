@@ -2,7 +2,6 @@ package reader
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 
 	"github.com/zeebo/xxh3"
@@ -15,14 +14,16 @@ https://cyan4973.github.io/xxHash/
 func hashCalc(path string) uint64 {
 	fileSize, err := os.Stat(path)
 	if err != nil {
-		fmt.Errorf("hashCalc: stat %s, err %v", path, err)
+		entry.Errorf("hashCalc: stat %s, err %v", path, err)
+		return 0
 	}
 
 	buf := make([]byte, 0, fileSize.Size())
 
 	readFile, err := os.Open(path)
 	if err != nil {
-		fmt.Errorf("hashCalc: open %s, err %v", path, err)
+		entry.Errorf("hashCalc: open %s, err %v", path, err)
+		return 0
 	}
 	defer readFile.Close()
 
