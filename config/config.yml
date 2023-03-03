@@ -1,0 +1,19 @@
+service:
+  name: Synchronizer
+
+# Folders that should be synchronized
+# need to use absoulte path
+folders:
+  source_folder: "/workspaces/rebrain-go/final_task/testbed/src_folder/"
+  destination_folder: "/workspaces/rebrain-go/final_task/testbed/dst_folder/"
+
+
+options:
+  # sync A->B and B->A or just A->B
+  two_way: true
+  # interval in Minutes. wait time between synchronizations. 
+  internal: 1
+  # debug level. 1-fatal, 2-error, 3-warning, 4-info, 5-debug, 6-trace 
+  debug: 5
+  # path to log file
+  logFile: "log.txt"
