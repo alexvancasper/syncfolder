@@ -97,7 +97,14 @@ func syncTwoFolders(dir1, dir2 *ListFiles) {
 			}
 		}
 
-		copied, err := copyFile(fileInfo.Name, destination, fileInfo.Info.Size())
+		var bufSize int64
+		if fileInfo.Info.Size() > int64(100e6) {
+			bufSize = 100e6
+		} else {
+			bufSize = fileInfo.Info.Size()
+		}
+
+		copied, err := copyFile(fileInfo.Name, destination, bufSize)
 		if err != nil {
 			entry.Error(fmt.Errorf("file copying failed: %v", err))
 			continue

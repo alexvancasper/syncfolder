@@ -243,3 +243,24 @@ func TestSync(t *testing.T) {
 	req.Equal(nil, errLog)
 
 }
+
+func BenchmarkCopyFile(b *testing.B) {
+	os.MkdirAll("testbed2/src_folder/dir1/", os.FileMode.Perm(0777))
+	os.MkdirAll("testbed2/dst_folder/dir2/", os.FileMode.Perm(0777))
+	data := strings.Repeat("TB\n", 100000000)
+	os.WriteFile("testbed2/src_folder/file1", []byte(data), os.FileMode.Perm(0777))
+	defer os.RemoveAll("testbed2/")
+
+	fileInfo, _ := os.Stat("testbed2/src_folder/file1")
+	var bufSize int64
+	if fileInfo.Size() > int64(100e6) {
+		bufSize = 100e6
+	} else {
+		bufSize = fileInfo.Size()
+	}
+
+	for i := 0; i < b.N; i++ {
+		copyFile("testbed2/src_folder/file1", "testbed2/dst_folder/file1", bufSize)
+	}
+
+}
