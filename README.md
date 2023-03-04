@@ -5,8 +5,8 @@ Synchronizer синхронизирует 2 папки между собой в�
 
 ## Compilation
 ```sh
-git clone <repository path>
-cd <repository>
+git clone git@github.com:alexvancasper/syncfolder.git
+cd syncfolder
 ```
 
 To run tests
